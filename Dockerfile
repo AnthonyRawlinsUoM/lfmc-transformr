@@ -37,7 +37,7 @@ RUN mkdir /rserve/data/out
 COPY ./src/api-supervisor.conf /api-supervisor.conf
 
 RUN mkdir -p /media/ramdisk
-RUN mount -t tmpfs -o size=2048m tmpfs /media/ramdisk
+# RUN mount -t tmpfs -o size=2048m tmpfs /media/ramdisk
 
 EXPOSE 8000
 CMD ["/usr/bin/supervisord", "-c", "/api-supervisor.conf"]
