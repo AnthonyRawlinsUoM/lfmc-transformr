@@ -5,86 +5,138 @@ test <- function(n, wait = 0.5, ...) {
     list(value = n)
 }
 
-#### FUNCTIONS FOR API
-#if(!exists("modis_to_ncdf", mode="function")) source("./modis_to_ncdf_function.R")
+#### FUNCTIONS FOR API if(!exists('modis_to_ncdf', mode='function'))
+#### source('./modis_to_ncdf_function.R')
 
 
 
 
-modis_to_ncdf<-function(thefile)
-{  
-  
-  require(raster)
-  require(gdalUtils)
-  require(ncdf4)
-
-  
-  in_path<-"/home/docker/rserve/data/in/"
-  out_path<-"/home/docker/rserve/data/out/"
-  
-  ramdisk<-"/media/ramdisk/"
-  
-  thefilepath<-paste0(in_path, thefile)
-
-  out_file_name <- gsub(".hdf", ".nc", thefile)
-  out_file_path <- paste0(out_path, out_file_name)
-  
-  sds<-get_subdatasets(thefilepath)
+modis_to_ncdf <- function(thefile) {
     
-    for (i in c(1,3,4))
-    {  
-      gdal_translate(sds[i], dst_dataset = paste0(ramdisk, "band", i, ".tif"))
+    require(rgeos)
+    require(raster)
+    require(rgdal)
+    require(snowfall)
+    require(jsonlite)
+    require(httr)
+    require(geojsonio)
+    require(xml2)
+    require(maptools)
+    require(stringr)
+    require(ncdf4)
+    
+    classify <- c(16001, Inf, NA, -Inf, 0, NA)
+    rcl <-matrix(classify, ncol=3, byrow=TRUE)
+    
+    in_path <- "/home/docker/rserve/data/in/"
+    shp_path <- "/home/docker/rserve/data/static"
+    out_path <- "/home/docker/rserve/data/out/"
+    
+    ramdisk <- "/media/ramdisk/"
+    
+    thefilepath <- paste0(in_path, thefile)
+    
+    out_file_name <- gsub(".hdf", ".nc", thefile)
+    out_file_path <- paste0(out_path, out_file_name)
+    
+    result <- list(name = out_file_name, status_code = 500)
+    
+    if (!file.exists(out_file_path)) {
+        get_sds <- function(thefilepath) {
+            sds <- tryCatch({
+                gdalUtils::get_subdatasets(thefilepath)
+            }, warning = function(w) {
+                result <- list(name = out_file_name, status_code = 503)
+                return(result)
+            }, error = function(e) {
+                file.remove(thefilepath)
+                result <- list(name = out_file_name, status_code = 503, c("[Error] :", 
+                  thefilepath, " (problem file was deleted.)"))
+                return(result)
+            }, finally = {
+                
+            })
+            return(sds)
+        }
+        
+        sds <- get_sds(thefilepath)
+        
+        if (!is.null(sds)) {
+            
+            for (i in c(1, 3, 4)) {
+                gdalUtils::gdal_translate(sds[i], dst_dataset = paste0(ramdisk, out_file_name, 
+                  "-band", i, ".tif"), r = "cubic")
+            }
+            
+            band1 <- reclassify(raster(paste0(ramdisk, out_file_name, "-band1.tif")), 
+                rcl)
+            band3 <- reclassify(raster(paste0(ramdisk, out_file_name, "-band3.tif")), 
+                rcl)
+            band4 <- reclassify(raster(paste0(ramdisk, out_file_name, "-band4.tif")), 
+                rcl)
+            
+            # Match thefile's name to the modis granule forest mask
+            #  eg., thefile<-"/nfs/pyromancer/Project/Landscape_Fuel_Moisture_Project/data/geoserver/data/FuelModels/Live_FM/MODIS/MOD09A1.A2017297.h30v12.006.2017310191152.hdf"
+            # 
+            mask <- paste0(shp_path, "/", strsplit(thefile, "[.]")[[1]][3], ".shp")
+            
+            mask_shp <- shapefile(mask)
+            mask_shp <- spTransform(mask, CRS("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs "))
+            
+            vari <- band1  # Placeholder to keep object properties intact
+            
+            vari@data@values <- ((band4@data@values - band1@data@values)/(band4@data@values + 
+                band1@data@values - band3@data@values))
+            
+            # FROM MODIS
+            crs(vari) <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs "
+            
+            # Anything outside the modis granule forest mask is NODATA / NULL (masked)
+            
+            # crs(mask_shp) # ??
+            vari_masked <- crop(vari, mask_shp)
+            
+            
+            # TO MERCATOR
+            outfile <- projectRaster(from = vari_masked, crs = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+            
+            londim <- ncdim_def("lon", "degrees_east", seq(xmin(outfile), xmax(outfile) - 
+                res(outfile)[1], by = res(outfile)[1]))
+            latdim <- ncdim_def("lat", "degrees_north", rev(seq(ymin(outfile), ymax(outfile) - 
+                res(outfile)[2], by = res(outfile)[2])))
+            
+            gdalinfo_raw <- gdalUtils::gdalinfo(thefilepath)
+            dates <- gdalinfo_raw[grep(glob2rx("*GRANULEBEGINNINGDATETIME*"), gdalinfo_raw)]
+            date_parts <- strsplit(dates, "=")
+            first_date <- strsplit(as.character(date_parts[[1]][2]), ",")[[1]][1]
+            
+            
+            days <- as.numeric(as.Date(first_date) - as.Date("1970-01-01"))
+            timedim <- ncdim_def("time", "days since 1970-01-01", days)
+            
+            # define variables
+            varname = "vari"
+            units = "z-scores"
+            dlname <- "Nolan live fuel moisture variation"
+            fillvalue <- 1e+20
+            tmp.def <- ncdf4::ncvar_def(varname, units, list(londim, latdim, timedim), 
+                fillvalue, dlname, prec = "double")
+            
+            ncout <- ncdf4::nc_create(out_file_path, vars = tmp.def, force_v4 = T)
+            ncdf4::ncvar_put(ncout, tmp.def, values(outfile))
+            ncdf4::nc_close(ncout)
+            
+            file.remove(paste0(ramdisk, out_file_name, "-band1.tif"))
+            file.remove(paste0(ramdisk, out_file_name, "-band3.tif"))
+            file.remove(paste0(ramdisk, out_file_name, "-band4.tif"))
+            
+            result <- list(name = out_file_name, status_code = 200)
+            
+            # msg <- paste('[Wrote file] :', out_file_name)
+        }
     }
     
-    band1<-raster(paste0(ramdisk, "band1.tif"))
-    band3<-raster(paste0(ramdisk, "band3.tif"))
-    band4<-raster(paste0(ramdisk, "band4.tif"))
-    
-    step1<-((band4-band1)/(band4+band1-band3))
-    
-    step2<-clamp(step1, lower=-1, upper=1)
-    vari_max <- max(getValues(step2), na.rm=T)
-    vari_min <- min(getValues(step2), na.rm=T)
-    
-    vari_range = vari_max - vari_min
-    
-    rvari = (step2 - vari_min / vari_range)
-    rvari<-clamp(rvari, lower=0, upper=1)
-    
-    lfmc = 52.51^(1.36 * rvari)
-    crs(lfmc)<-"+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs "
-    outfile<-projectRaster(from=lfmc, crs="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs" )
-    
-    londim <- ncdim_def("lon", "degrees_east",  seq(xmin(outfile),xmax(outfile)-res(outfile)[1], by=res(outfile)[1]))
-    latdim <- ncdim_def("lat", "degrees_north", rev(seq(ymin(outfile),ymax(outfile)-res(outfile)[2], by=res(outfile)[2])))
-    
-    gdalinfo_raw <- gdalinfo(thefilepath)
-    dates <- gdalinfo_raw[grep(glob2rx("*GRANULEBEGINNINGDATETIME*"), gdalinfo_raw)]
-    date_parts<-strsplit(dates, "=")
-    first_date<-strsplit(as.character(date_parts[[1]][2]),',')[[1]][1]
-
-    
-    days<-as.numeric(as.Date(first_date) - as.Date('1970-01-01'))
-    timedim<- ncdim_def("time", "days since 1970-01-01", days)
-    
-    # define variables
-    varname="LFMC"
-    units="z-scores"
-    dlname <- "Nolan live fuel moisture content"
-    fillvalue <- 1e20
-    tmp.def <- ncvar_def(varname, units, list(londim, latdim, timedim), fillvalue, 
-                         dlname, prec = "single")
-    
-    ncout<-nc_create(out_file_path, vars=tmp.def, force_v4 = T)
-    ncvar_put(ncout, tmp.def, values(outfile))
-    nc_close(ncout)
-    
-    file.remove(thefilepath)
-    file.remove(paste0(ramdisk, "band1.tif"))
-    file.remove(paste0(ramdisk, "band3.tif"))
-    file.remove(paste0(ramdisk, "band4.tif"))
-  
-  return(out_file_name)
+    return(result)
 }
 
 
