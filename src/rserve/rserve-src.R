@@ -28,14 +28,14 @@ modis_to_ncdf <- function(thefile) {
     classify <- c(16001, Inf, NA, -Inf, 0, NA)
     rcl <-matrix(classify, ncol=3, byrow=TRUE)
     
-    # in_path <- "/home/docker/rserve/data/in/"
-    # shp_path <- "/home/docker/rserve/data/static"
-    # out_path <- "/home/docker/rserve/data/out/"
+    in_path <- "/home/docker/rserve/data/in/"
+    shp_path <- "/home/docker/rserve/data/static"
+    out_path <- "/home/docker/rserve/data/out/"
     
-    in_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/MODIS/"
-    out_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/projd/"
-    shp_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/theforest/"
-    
+    # in_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/MODIS/"
+    # out_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/projd/"
+    # shp_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/theforest/"
+    # 
     ramdisk <- "/media/ramdisk/"
     
     thefilepath <- paste0(in_path, thefile)
@@ -147,7 +147,7 @@ modis_to_ncdf <- function(thefile) {
 }
 
 
-
+A
 
 
 
