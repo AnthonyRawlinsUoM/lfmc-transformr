@@ -147,12 +147,6 @@ modis_to_ncdf <- function(thefile) {
 }
 
 
-A
-
-
-
-
-
 #### PROCESS REQUEST
 process_request <- function(url, query, body, headers) {
     #### building request object not strictly necessary as in FastRWeb, just to make
