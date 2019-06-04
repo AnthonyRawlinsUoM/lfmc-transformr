@@ -29,7 +29,7 @@ modis_to_ncdf <- function(thefile) {
     rcl <-matrix(classify, ncol=3, byrow=TRUE)
     
     in_path <- "/home/docker/rserve/data/in/"
-    shp_path <- "/home/docker/rserve/data/static"
+    shp_path <- "/home/docker/rserve/data/static/"
     out_path <- "/home/docker/rserve/data/out/"
     
     # in_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/MODIS/"
@@ -100,7 +100,8 @@ modis_to_ncdf <- function(thefile) {
                 band1@data@values - band3@data@values))
             
             # FROM MODIS
-            # crs(vari) <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+            crs(vari) <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+            crs(bmask) <- "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
             
             # Anything outside the modis granule forest mask is NODATA / NULL (masked)
             
