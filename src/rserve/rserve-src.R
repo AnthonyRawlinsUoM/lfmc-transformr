@@ -32,12 +32,12 @@ modis_to_ncdf <- function(thefile) {
     shp_path <- "/home/docker/rserve/data/static/"
     out_path <- "/home/docker/rserve/data/out/"
     
-    # in_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/MODIS/"
-    # out_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/projd/"
-    # shp_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/theforest/"
+    #in_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/MODIS/"
+    #out_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/projd/"
+    #shp_path <- "/nfs/pyromancer/Projects/Landscape_Fuel_Moisture_Project/data/geoserver_data/FuelModels/Live_FM/theforest/"
 
-    ramdisk <- "/media/ramdisk/"
-    
+    #ramdisk <- "/media/ramdisk/"
+    ramdisk <- "/tmp"
     thefilepath <- paste0(in_path, thefile)
     
     out_file_name <- gsub(".hdf", ".nc", thefile)
@@ -81,18 +81,20 @@ modis_to_ncdf <- function(thefile) {
             
             # Match thefile's name to the modis granule forest mask
             #  eg., thefile<-"/nfs/pyromancer/Project/Landscape_Fuel_Moisture_Project/data/geoserver/data/FuelModels/Live_FM/MODIS/MOD09A1.A2017297.h30v12.006.2017310191152.hdf"
-            # 
-            # mask <- paste0(shp_path, "MODIS_", strsplit(thefile, "[.]")[[1]][3], ".shp")
-            # 
-            # mask_shp <- shapefile(mask)
-            # rmask <- rasterize(mask_shp, band1, field=1)
-            # writeRaster(rmask, paste0(mask, '_mask.tif'))
-            
+
             bit_mask <- paste0(shp_path, "MODIS_", strsplit(thefile, "[.]")[[1]][3], ".shp_mask.tif")
             
-            bmask <- raster(bit_mask)
-            
-            # mask_shp <- spTransform(mask, mask_shp, proj4string="+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs")
+            if (!file.exists(bit_mask)) {
+              mask <- paste0(shp_path, "MODIS_", strsplit(thefile, "[.]")[[1]][3], ".shp")
+              if (!file.exists(bit_mask)) {
+                mask_shp <- shapefile(mask)
+                rmask <- rasterize(mask_shp, band1, field=1)
+                writeRaster(rmask, paste0(mask, '_mask.tif'))
+                bmask <- rmask
+              }
+            } else {
+              bmask <- raster(bit_mask)
+            }
             
             vari <- band1  # Placeholder to keep object properties intact
             

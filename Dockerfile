@@ -20,7 +20,7 @@ RUN wget http://www.rforge.net/Rserve/snapshot/Rserve_1.8-5.tar.gz \
 
 RUN echo '/usr/local/lib/R/lib/' >> /etc/ld.so.conf.d/libR.conf \
     && ldconfig
-    
+
 RUN echo '/usr/local/lib/R/site-library/' >> /etc/ld.so.conf.d/libR.conf \
     && ldconfig
 
@@ -39,7 +39,7 @@ RUN mkdir /rserve/data/out
 COPY ./src/api-supervisor.conf /api-supervisor.conf
 
 RUN mkdir -p /media/ramdisk
-# RUN mount -t tmpfs -o size=2048m tmpfs /media/ramdisk
+#RUN mount -t tmpfs -o size=2048m tmpfs /media/ramdisk
 
 EXPOSE 8000
 CMD ["/usr/bin/supervisord", "-c", "/api-supervisor.conf"]
